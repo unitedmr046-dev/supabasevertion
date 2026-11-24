@@ -57,8 +57,8 @@ object AppThemeState {
     var preset by mutableStateOf(BrandPreset.ORANGE)
         private set
 
-    fun setMode(newMode: DisplayThemeMode) { mode = newMode }
-    fun setPreset(newPreset: BrandPreset) { preset = newPreset }
+    fun updateMode(newMode: DisplayThemeMode) { mode = newMode }
+    fun updatePreset(newPreset: BrandPreset) { preset = newPreset }
 }
 
 val LocalIsDarkMode = compositionLocalOf { false }
