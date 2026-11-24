@@ -22,24 +22,14 @@ import org.json.JSONObject
 import java.io.File
 
 data class CartPick(
-    val optionId: String,
-    val groupId: String,
-    val groupName: String,
-    val productId: String,
-    val productName: String,
-    val costPrice: Long,
-    val qty: Int,
-    val extraPrice: Long
+    val optionId: String, val groupId: String, val groupName: String,
+    val productId: String, val productName: String, val costPrice: Long,
+    val qty: Int, val extraPrice: Long
 )
 
 data class CartItem(
-    val key: String,
-    val product: ProductEntity? = null,
-    val qty: Int = 1,
-    val note: String = "",
-    val bundle: BundleEntity? = null,
-    val picks: List<CartPick> = emptyList(),
-    val extraUnitPrice: Long = 0L
+    val key: String, val product: ProductEntity? = null, val qty: Int = 1, val note: String = "",
+    val bundle: BundleEntity? = null, val picks: List<CartPick> = emptyList(), val extraUnitPrice: Long = 0L
 ) {
     val isBundle: Boolean get() = bundle != null
     val name: String get() = bundle?.name ?: product?.name ?: ""
@@ -60,17 +50,13 @@ fun MenuPhotoBox(localPath: String?, remoteUrl: String?, fallbackEmoji: String =
         }
     }
     Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-        if (model != null) {
-            AsyncImage(model = model, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        } else {
-            Text(fallbackEmoji, style = MaterialTheme.typography.headlineMedium)
-        }
+        if (model != null) AsyncImage(model = model, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        else Text(fallbackEmoji, style = MaterialTheme.typography.headlineMedium)
     }
 }
 
 class PosV2Controller(private val app: AppContainer) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-
     var orderType by mutableStateOf(OrderType.DINE_IN.id)
     var tableNumber by mutableStateOf("")
     var customerName by mutableStateOf("")
@@ -78,7 +64,6 @@ class PosV2Controller(private val app: AppContainer) {
     var editingReceiptCode by mutableStateOf("")
     var searchQuery by mutableStateOf("")
     var categoryFilter by mutableStateOf<String?>(null)
-
     var discountType by mutableStateOf("NONE")
     var discountValue by mutableStateOf(0L)
     var voucherCode by mutableStateOf("")
@@ -87,16 +72,13 @@ class PosV2Controller(private val app: AppContainer) {
     var selectedMember by mutableStateOf<MemberEntity?>(null)
     var pointsToRedeem by mutableStateOf(0)
     var taxPercent by mutableIntStateOf(0)
-
     var barcodeNotice by mutableStateOf<String?>(null)
     var activePayments by mutableStateOf(PaymentMethod.entries.map { it.id }.toSet())
     var soundEnabled by mutableStateOf(true)
 
     private val _cart = MutableStateFlow<Map<String, CartItem>>(emptyMap())
-    val cart: StateFlow<List<CartItem>> = _cart.map { it.values.toList() }
-        .stateIn(scope, SharingStarted.Eagerly, emptyList())
-    val subtotal: StateFlow<Long> = cart.map { list -> list.sumOf { it.lineTotal } }
-        .stateIn(scope, SharingStarted.Eagerly, 0L)
+    val cart: StateFlow<List<CartItem>> = _cart.map { it.values.toList() }.stateIn(scope, SharingStarted.Eagerly, emptyList())
+    val subtotal: StateFlow<Long> = cart.map { list -> list.sumOf { it.lineTotal } }.stateIn(scope, SharingStarted.Eagerly, 0L)
 
     init { refreshPrefs() }
 
@@ -109,6 +91,116 @@ class PosV2Controller(private val app: AppContainer) {
                 activePayments = app.prefRepo.getActivePayments()
             }
         }
+    }
+    fun calcDiscount(sub: Long): Long = when (discountType) {
+        "NOMINAL" -> discountValue.coerceIn(0L, sub)
+        "PERCENT" -> (sub * discountValue.coerceIn(0L, 100L)) / 100L
+        else -> 0L
+    }
+
+    fun calcTax(taxable: Long): Long = (taxable * taxPercent.coerceIn(0, 100)) / 100L
+
+    fun calcTotal(sub: Long): Long {
+        val afterDisc = (sub - calcDiscount(sub) - voucherAmount - LoyaltyRules.pointsToRupiah(pointsToRedeem)).coerceAtLeast(0L)
+        return afterDisc + calcTax(afterDisc)
+    }
+
+    fun addProduct(p: ProductEntity, stock: OutletStockEntity?, note: String = "") {
+        val availFlag = stock?.available ?: p.available
+        if (!availFlag) { barcodeNotice = "${p.name} sedang habis"; return }
+        val key = "P:${p.id}|$note"
+        val curInCart = _cart.value.values.filter { !it.isBundle && it.product?.id == p.id }.sumOf { it.qty }
+        if (p.trackStock) {
+            val maxQty = stock?.stockQty ?: 0
+            if (curInCart >= maxQty) {
+                barcodeNotice = "Stok ${p.name} hanya tersisa $maxQty"
+                if (soundEnabled) AppSound.playError(); return
+            }
+        }
+        _cart.update { map ->
+            val old = map[key]
+            if (old == null) map + (key to CartItem(key = key, product = p, qty = 1, note = note))
+            else map + (key to old.copy(qty = old.qty + 1))
+        }
+        if (soundEnabled) AppSound.playClick()
+    }
+
+    fun addBundle(b: BundleEntity, picks: List<CartPick>) {
+        if (!b.available) { barcodeNotice = "${b.name} sedang habis"; return }
+        val sig = picks.sortedBy { it.optionId }.joinToString(",") { "${it.productId}:${it.qty}:${it.extraPrice}" }
+        val key = "B:${b.id}:$sig"
+        val extra = picks.sumOf { it.extraPrice * it.qty }
+        _cart.update { map ->
+            val old = map[key]
+            if (old == null) map + (key to CartItem(key = key, bundle = b, picks = picks, extraUnitPrice = extra, qty = 1))
+            else map + (key to old.copy(qty = old.qty + 1))
+        }
+        if (soundEnabled) AppSound.playClick()
+    }
+
+    fun decrease(key: String) = _cart.update { map ->
+        val old = map[key] ?: return@update map
+        if (old.qty <= 1) map - key else map + (key to old.copy(qty = old.qty - 1))
+    }
+
+    fun remove(key: String) { _cart.update { it - key } }
+
+    fun updateNote(key: String, newNote: String) {
+        val item = _cart.value[key] ?: return
+        val p = item.product ?: return
+        val newKey = "P:${p.id}|$newNote"
+        _cart.update { map ->
+            val withoutOld = map - key
+            val existing = withoutOld[newKey]
+            if (existing == null) withoutOld + (newKey to item.copy(key = newKey, note = newNote))
+            else withoutOld + (newKey to existing.copy(qty = existing.qty + item.qty))
+        }
+    }
+
+    fun scanBarcode(code: String, stocksMap: Map<String, OutletStockEntity>) {
+        scope.launch {
+            val found = app.catalogRepo.getByBarcode(code)
+            if (found == null) {
+                barcodeNotice = "Barcode '$code' tidak ditemukan"
+                if (soundEnabled) AppSound.playError()
+            } else {
+                addProduct(found, stocksMap[found.id])
+                barcodeNotice = "✓ ${found.name} ditambahkan"
+            }
+        }
+    }
+
+    fun applyVoucher(rawCode: String, sub: Long) {
+        scope.launch {
+            voucherError = null
+            val k = rawCode.trim().uppercase()
+            if (k.isBlank()) { clearVoucher(); return@launch }
+            val v = app.crmRepo.getVoucher(k) ?: run { voucherError = "Kode voucher tidak ditemukan"; return@launch }
+            val now = System.currentTimeMillis()
+            val err = when {
+                !v.active -> "Voucher nonaktif"
+                v.quota > 0 && v.usedCount >= v.quota -> "Kuota voucher sudah habis"
+                v.endAt > 0L && v.endAt < now -> "Voucher kadaluarsa"
+                v.startAt > 0L && v.startAt > now -> "Voucher belum berlaku"
+                sub < v.minSpend -> "Minimal belanja ${v.minSpend.toRupiah()}"
+                else -> null
+            }
+            if (err != null) { voucherError = err; if (soundEnabled) AppSound.playError(); return@launch }
+            val amt = if (v.discountType == "PERCENT") {
+                val raw = (sub * v.value) / 100L
+                if (v.maxDiscount > 0L) raw.coerceAtMost(v.maxDiscount) else raw
+            } else v.value.coerceAtMost(sub)
+            voucherCode = k; voucherAmount = amt
+        }
+    }
+
+    fun clearVoucher() { voucherCode = ""; voucherAmount = 0L; voucherError = null }
+
+    fun resetOrder() {
+        orderType = OrderType.DINE_IN.id; tableNumber = ""; customerName = ""
+        editingOrderId = null; editingReceiptCode = ""; discountType = "NONE"; discountValue = 0L
+        clearVoucher(); selectedMember = null; pointsToRedeem = 0; barcodeNotice = null
+        _cart.value = emptyMap(); refreshPrefs()
     }
     fun loadOpenBill(orderId: String) {
         scope.launch {
@@ -130,8 +222,7 @@ class PosV2Controller(private val app: AppContainer) {
                     )
                     val picks = decodePicks(it.picksJson)
                     val extra = picks.sumOf { p -> p.extraPrice * p.qty }
-                    val realBasePrice = (it.unitPrice - extra).coerceAtLeast(0L)
-                    val fixedBundle = b.copy(bundlePrice = realBasePrice)
+                    val fixedBundle = b.copy(bundlePrice = (it.unitPrice - extra).coerceAtLeast(0L))
                     val key = "B:${fixedBundle.id}:${it.id}"
                     map[key] = CartItem(key = key, bundle = fixedBundle, picks = picks, extraUnitPrice = extra, qty = it.qty)
                 } else {
@@ -160,8 +251,7 @@ class PosV2Controller(private val app: AppContainer) {
             val taxAmt = calcTax(taxable)
             val total = taxable + taxAmt
             val orderId = editingOrderId ?: newUuid()
-            val queueOn = app.prefRepo.isQueueEnabled()
-            val queueNo = if (queueOn) app.orderRepo.nextQueueNumber(outletId) else 0
+            val queueNo = if (app.prefRepo.isQueueEnabled()) app.orderRepo.nextQueueNumber(outletId) else 0
             val u = SessionManager.currentUser
             val shiftId = if (!isOpenBill) app.shiftRepo.getActive(outletId)?.id.orEmpty() else ""
 
