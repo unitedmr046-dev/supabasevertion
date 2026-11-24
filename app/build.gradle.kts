@@ -4,34 +4,45 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
     id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
 }
 
 android {
     namespace = "com.iyonzkasir"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.iyonzkasir"
         minSdk = 24
-        targetSdk = 34
-        versionCode = 1
-        versionName = "0.7.0"
+        targetSdk = 36
+        versionCode = 2
+        versionName = "2.0.0-dev"
     }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
     }
-    buildFeatures { compose = true }
+
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
 }
 
 dependencies {
@@ -60,28 +71,29 @@ dependencies {
     // ── Coil (image loader) ──
     implementation("io.coil-kt:coil-compose:2.7.0")
 
-    // ── WorkManager (auto backup) ──
+    // ── WorkManager (auto backup & cloud sync) ──
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
-    // ── ML Kit Barcode Scanning ──
+    // ── ML Kit Barcode Scanning (16 KB aligned) ──
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
 
-    // ── CameraX (untuk preview kamera) ──
-    val cameraxVersion = "1.3.4"
+    // ── CameraX 1.4.2 (16 KB aligned) ──
+    val cameraxVersion = "1.4.2"
     implementation("androidx.camera:camera-core:$cameraxVersion")
     implementation("androidx.camera:camera-camera2:$cameraxVersion")
     implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
     implementation("androidx.camera:camera-view:$cameraxVersion")
 
-    // ── Accompanist Permissions (izin runtime di Compose) ──
+    // ── Accompanist Permissions ──
     implementation("com.google.accompanist:accompanist-permissions:0.34.0")
 
     // ── Firebase ──
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-crashlytics")
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.firebase:firebase-auth-ktx")
 
-    // ── OkHttp (untuk upload ke ImgBB) ──
+    // ── OkHttp ──
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
