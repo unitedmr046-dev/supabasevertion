@@ -1,6 +1,8 @@
 package com.iyonzkasir.ui.activity
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -47,7 +49,7 @@ fun ActivityHubV2Screen(
                 ActivitySection.ORDERS -> OrdersHistoryV2Screen(app, onResumeOpenBill)
                 ActivitySection.KASBON -> KasbonAndCrmV2Screen(app)
                 ActivitySection.WEB -> WebOrdersV2Screen(app, onOrderAccepted = onResumeOpenBill)
-                null -> EmptyPlaceholder(androidx.compose.material.icons.Icons.Default.Lock, "Tidak ada akses aktivitas")
+                null -> EmptyPlaceholder(Icons.Default.Lock, "Tidak ada akses aktivitas")
             }
         }
     }
