@@ -25,6 +25,6 @@
 - [x] Langkah 6A: `hardware/*` + `ui/pos/*` (POS, Bundling, Checkout, Sukses, Struk)
 - [x] Langkah 6B: `ui/activity/*` (Dapur, Open Bill & Riwayat, Kasbon & Member, Web Orders)
 - [x] Langkah 6C-1: `ui/manage/` bagian 1 (Produk/Kategori/Stok, Paket, Pengeluaran, Shift, Laporan+CSV)
-- [ ] Langkah 6C-2: `ui/manage/` bagian 2 (Cabang & Karyawan Custom, Web QR, Printer/Tema/Backup, ManageHub)
+- [x] Langkah 6C-2: `ui/manage/` bagian 2 (Cabang & Karyawan Custom, Web QR, Printer/Tema/Backup, ManageHub)
 - [ ] Langkah 6D: Sambungkan `MainActivity.kt` & `IyonzApp` ke UI v2 + hapus file lama -> APK v2 siap instal!
 - [ ] Langkah 7: Update `web/index.html` + `firestore.rules` + setup Firebase Console + tes APK
